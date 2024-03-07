@@ -9,9 +9,43 @@ import (
 	"net/url"
 	"encoding/json"
     "io"
+    "os"
 
 	"doyoudare-be/internal/config"
 )
+
+type Tokens struct {
+    AccessToken  string `json:"access_token"`
+    RefreshToken string `json:"refresh_token"`
+}
+
+// SaveTokens writes the tokens to a specified file path securely
+func SaveTokens(accessToken, refreshToken, filePath string) error {
+    tokens := Tokens{AccessToken: accessToken, RefreshToken: refreshToken}
+    file, err := json.MarshalIndent(tokens, "", " ")
+    if err != nil {
+        return err
+    }
+
+    return os.WriteFile(filePath, file, 0644)
+}
+
+// RefreshAccessToken uses the refresh token to get a new access token
+func RefreshAccessToken(refreshToken string, conf *config.Config) (newAccessToken string, err error) {
+    data := url.Values{}
+    data.Set("grant_type", "refresh_token")
+    data.Set("refresh_token", refreshToken)
+    data.Set("client_id", conf.SpotifyClientID)
+
+    resp, err := http.PostForm("https://accounts.spotify.com/api/token", data)
+    if err != nil {
+        return "", err
+    }
+    defer resp.Body.Close()
+
+    accessToken, _, err := parseTokenResponse(resp.Body) // Refresh token response may not include a new refresh token
+    return accessToken, err
+}
 
 // Generate a secure, random string for the PKCE code verifier
 func generateCodeVerifier() (string, error) {
@@ -33,8 +67,7 @@ func generateCodeChallenge(verifier string) (string, error) {
 }
 
 // Construct the Spotify authorization URL with PKCE
-func buildAuthURL(conf *config.Config, codeChallenge string) string {
-	// Define the required query parameters
+func buildAuthURL(conf *config.Config, codeChallenge, state string) string {	// Define the required query parameters
 	params := url.Values{}
 	params.Add("client_id", conf.SpotifyClientID)
 	params.Add("response_type", "code")
@@ -42,15 +75,21 @@ func buildAuthURL(conf *config.Config, codeChallenge string) string {
 	params.Add("code_challenge_method", "S256")
 	params.Add("code_challenge", codeChallenge)
 	params.Add("scope", "user-read-private user-read-currently-playing user-read-playback-state playlist-read-private")
-
+	params.Add("state", state)
 	// Construct the full URL
 	authURL := fmt.Sprintf("https://accounts.spotify.com/authorize?%s", params.Encode())
 	return authURL
 }
 
 // StartAuthentication initiates the authentication process
-func StartAuthentication(conf *config.Config) (authURL string, codeVerifier string, err error) {
-	codeVerifier, err = generateCodeVerifier()
+// StartAuthentication initiates the authentication process and returns the URL and state
+func StartAuthentication(conf *config.Config) (authURL, state string, err error) {
+	state, err = generateState()
+	if err != nil {
+		return "", "", err
+	}
+
+	codeVerifier, err := generateCodeVerifier()
 	if err != nil {
 		return "", "", err
 	}
@@ -58,8 +97,21 @@ func StartAuthentication(conf *config.Config) (authURL string, codeVerifier stri
 	if err != nil {
 		return "", "", err
 	}
-	authURL = buildAuthURL(conf, codeChallenge)
-	return authURL, codeVerifier, nil
+
+	// Store the codeVerifier with the state
+	SaveStateVerifier(state, codeVerifier)
+
+	authURL = buildAuthURL(conf, codeChallenge, state)
+	return authURL, state, nil
+}
+
+// Add a helper function to generate a state parameter
+func generateState() (string, error) {
+	randomBytes := make([]byte, 16) // 128 bits is a common length for a state parameter
+	if _, err := rand.Read(randomBytes); err != nil {
+		return "", err
+	}
+	return base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(randomBytes), nil
 }
 
 type TokenResponse struct {
