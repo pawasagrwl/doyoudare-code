@@ -82,8 +82,7 @@ web_modules/
 .env.test.local
 .env.production.local
 .env.local
-tokens.json
-.git/
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 .parcel-cache
@@ -141,5 +140,10 @@ dist
 
 # SvelteKit build / generate output
 .svelte-kit
+
+# others
+tokens.json
+.git/
+fly.toml
 
 # End of https://www.toptal.com/developers/gitignore/api/node

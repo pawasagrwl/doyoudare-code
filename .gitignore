@@ -154,4 +154,8 @@ psd
 thumb
 sketch
 
+# others
+doyoudare-be/.git/
+doyoudare-fe/.git/
+
 # End of https://www.toptal.com/developers/gitignore/api/react,node
