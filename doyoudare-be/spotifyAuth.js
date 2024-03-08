@@ -59,7 +59,7 @@ const refreshTokens = async () => {
 
     console.log("The access token has been refreshed.");
   } catch (error) {
-    console.error("Could not refresh access token", error);
+    console.error("Could not refresh access token, please login again.");
   }
 };
 

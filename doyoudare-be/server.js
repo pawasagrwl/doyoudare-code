@@ -14,7 +14,7 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
+app.use(express.static('public'));
 // Initialization logic for token state
 const initializeTokenState = async () => {
   let tokens;
@@ -94,6 +94,7 @@ app.get("/callback", async (req, res) => {
 
     scheduleTokenRefresh();
     res.send("Login successful! You can now close this window.");
+
   } catch (err) {
     console.error("Something went wrong during the callback:", err);
     res.send("Error during the callback.");
